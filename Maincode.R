@@ -6,7 +6,7 @@ library(randomForest)
 library(gbm)
 library(caret)
 
-# I've set the working directory and loaded 'youth_data.Rdata' into data
+# Setingt the working directory and loaded 'youth_data.Rdata' into data
 setwd("C:/Users/alekh/Downloads/")
 data <- load("youth_data.Rdata")
 data
