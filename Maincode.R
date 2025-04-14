@@ -6,7 +6,7 @@ library(randomForest)
 library(gbm)
 library(caret)
 
-# Setingt the working directory and loaded 'youth_data.Rdata' into data
+# Seting the working directory and loaded 'youth_data.Rdata' into data
 setwd("C:/Users/alekh/Downloads/")
 data <- load("youth_data.Rdata")
 data
@@ -25,7 +25,7 @@ df_all <- na.omit(df_all)
 df_all$alcohol_use <- factor(df_all$ALCFLAG, levels = c(0, 1), labels = c("No", "Yes"))
 df_all$ALCFLAG <- NULL  
 
-# To readability, I'm renaming the predictors
+# For readability purposes, renaming the predictors to readable labels
 colnames(df_all)[colnames(df_all) == "STNDALC"]     <- "Friend_Drinks_Daily"
 colnames(df_all)[colnames(df_all) == "YFLMJMO"]     <- "Friend_Marijuana_Monthly"
 colnames(df_all)[colnames(df_all) == "YFLTMRJ2"]    <- "Friend_Offers_Marijuana"
@@ -146,10 +146,10 @@ test_set$marijuana_use_level <- droplevels(test_set$marijuana_use_level)
 
 set.seed(42)
 rf_two <- randomForest(marijuana_use_level ~ ., data = train_set, mtry = 5, importance = TRUE)
-
+# Computing the root mean square value
 prediction_two <- predict(rf_two, test_set, type = "class")
 prediction_two <- factor(prediction_two, levels = levels(test_set$marijuana_use_level))
-cat("Random Forest Accuracy:", mean(prediction_two == test_set$marijuana_use_level), "\n")
+cat("The Random Forest Accuracy:", mean(prediction_two == test_set$marijuana_use_level), "\n")
 varImpPlot(rf_two, n.var = 5, main = "Top 5 Important Variables - Random Forest")
 
 
