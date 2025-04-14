@@ -212,9 +212,4 @@ mean((prediction_three - test_set$alcohol_days_past_month)^2)
 bag_three <- randomForest(alcohol_days_past_month ~ ., data = train_set, mtry = 4, importance = TRUE)
 prediction_four <- predict(bag_three, test_set)
 mean((prediction_four - test_set$alcohol_days_past_month)^2)
-
-# RANDOM FOREST
-rf_three <- randomForest(alcohol_days_past_month ~ ., data = train_set, importance = TRUE)
-prediction_rf <- predict(rf_three, test_set)
-mean((prediction_rf - test_set$alcohol_days_past_month)^2)
-varImpPlot(rf_three, n.var = 5, sort = TRUE, main = "Top 5 Important Variables (Regression)")
+varImpPlot(bag_three, n.var = 5, sort = TRUE, main = "Top 5 Important Variables (Regression)")
