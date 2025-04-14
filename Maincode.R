@@ -103,7 +103,8 @@ drug_use$marijuana_use_level <- cut(drug_use$MRJYDAYS, breaks = c(-1, 0, 5, 15, 
 # The dataframe 'df_multi' consists of the predictors and target variable for multi-classification
 df_multi <- drug_use[, c(demographic_cols, youth_experience_cols, "marijuana_use_level")]
 df_multi <- na.omit(df_multi)
-
+colnames(df_multi)[colnames(df_multi) == "FRDMJMON"] <- "Friend_Uses_Marijuana_Monthly"
+colnames(df_multi)[colnames(df_multi) == "STNDSMJ"]     <- "Friend_Smokes_Marijuana"
 # Plotting the decision tree
 tree_two <- tree(marijuana_use_level ~ ., data = df_multi)
 tree_two
@@ -168,13 +169,17 @@ df_reg <- drug_use[, c(demographic_cols, youth_experience_cols, "alcohol_days_pa
 df_reg <- na.omit(df_reg)
 print(table(df_reg$alcohol_days_past_month))
 
+# For readability and clarity of predictor variable names
+colnames(df_reg)[colnames(df_reg) == "YFLMJMO"]    <- "Friend_Marijuana_Monthly"
+colnames(df_reg)[colnames(df_reg) == "YOSTOLE2"]   <- "Youth_Stole_Something"
+
 # Splitting the data into train and test data, 70% train data and 30% test data
 set.seed(42)
 train_index <- sample(1:nrow(df_reg), 0.7 * nrow(df_reg))
 train_set <- na.omit(df_reg[train_index, ])
 test_set  <- na.omit(df_reg[-train_index, ])
 
-#DECISON TREE
+# DECISON TREE
 tree_three <- tree(alcohol_days_past_month ~ ., data = train_set)
 tree_three
 summary(tree_three)
