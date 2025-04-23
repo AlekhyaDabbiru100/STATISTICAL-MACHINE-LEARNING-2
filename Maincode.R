@@ -6,7 +6,7 @@ library(randomForest)
 library(gbm)
 library(caret)
 
-# Seting the working directory and loaded 'youth_data.Rdata' into data
+# I've set the working directory and loaded 'youth_data.Rdata' into data
 setwd("C:/Users/alekh/Downloads/")
 data <- load("youth_data.Rdata")
 data
@@ -16,6 +16,7 @@ substance_cols
 demographic_cols
 # Named the dataframe 'df' as drug_use
 drug_use <- na.omit(df)
+drug_use
 
 # PART1: BINARY CLASSIFICATION: Predicting whether a youth has ever consumed alcohol or not
 # The dataframe 'df_all' consists of the predictors and target variable
@@ -25,14 +26,22 @@ df_all <- na.omit(df_all)
 df_all$alcohol_use <- factor(df_all$ALCFLAG, levels = c(0, 1), labels = c("No", "Yes"))
 df_all$ALCFLAG <- NULL  
 
-# For readability purposes, renaming the predictors to readable labels
+
+# To readability, I'm renaming the predictors
 colnames(df_all)[colnames(df_all) == "STNDALC"]     <- "Friend_Drinks_Daily"
-colnames(df_all)[colnames(df_all) == "YFLMJMO"]     <- "Friend_Marijuana_Monthly"
+colnames(df_all)[colnames(df_all) == "YFLMJMO"]     <- "Friend_Consumes_Marijuana_Monthly"
 colnames(df_all)[colnames(df_all) == "YFLTMRJ2"]    <- "Friend_Offers_Marijuana"
 colnames(df_all)[colnames(df_all) == "FRDMEVR2"]    <- "Friend_Ever_Smoked"
 colnames(df_all)[colnames(df_all) == "STNDSMJ"]     <- "Friend_Smokes_Marijuana"
 colnames(df_all)[colnames(df_all) == "EDUSCHGRD2"]  <- "Grade_Level"
 colnames(df_all)[colnames(df_all) == "NEWRACE2"]    <- "Race"
+
+# For plot readability, recoding categorical variables.
+df_all$Friend_Drinks_Daily <- factor(df_all$Friend_Drinks_Daily, levels = c(1, 2), labels = c("Yes", "No"))
+
+df_all$Friend_Consumes_Marijuana_Monthly <- factor(df_all$Friend_Consumes_Marijuana_Monthly, levels = c(1, 2), labels = c("Yes", "No"))
+
+df_all$Friend_Offers_Marijuana <- factor(df_all$Friend_Offers_Marijuana, levels = c(1, 2), labels = c("Yes", "No"))
 
 # Plotting the decision tree
 tree_one <- tree(alcohol_use ~ ., data = df_all)
@@ -70,7 +79,7 @@ train_set <- df_all[train_data, ]
 test_set  <- df_all[-train_data, ]
 
 # BAGGING
-bag_one <- randomForest(alcohol_use ~ ., data = train_set[, -which(names(train_set) == "alcohol_use_num")], mtry = ncol(train_set) - 2, importance = TRUE)
+bag_one <- randomForest(alcohol_use ~ ., data = train_set[, -which(names(train_set) == "alcohol_use_num")], mtry = ncol(train_set) - 2, importance = TRUE, ntree = 500)
 prediction_bag <- predict(bag_one, test_set)
 cat("Bagging Accuracy:", mean(prediction_bag == test_set$alcohol_use), "\n")
 
@@ -84,37 +93,93 @@ prediction_boost <- ifelse(probability_one > 0.5, "Yes", "No")
 cat("Boosting Accuracy:", mean(prediction_boost == test_set$alcohol_use), "\n")
 
 # RANDOM FOREST
-rf_one <- randomForest(alcohol_use ~ ., data = train_set[, -which(names(train_set) == "alcohol_use_num")], mtry = 5, importance = TRUE)
+rf_one <- randomForest(alcohol_use ~ ., data = train_set[, -which(names(train_set) == "alcohol_use_num")], mtry = 5, importance = TRUE, ntree = 500)
+# mtry = 5 since we took sqrt(p)
 prediction_rf <- predict(rf_one, test_set)
+confusionMatrix(prediction_rf, test_set$alcohol_use)
 cat("Random Forest Accuracy:", mean(prediction_rf == test_set$alcohol_use), "\n")
 varImpPlot(rf_one, n.var = 5, sort = TRUE, main = "Top 5 Important Variables")
 
 
+# plotting the three models accuracy results
+models <- c("Boosting", "Random Forest", "Bagging")
+accuracies <- c(80.7, 79.9, 79.1)/100
+df_accuracies <- data.frame(models, accuracies)
+ggplot(df_accuracies, aes(x = models, y = accuracies, fill = models)) +
+  geom_col(width = 0.5, show.legend = TRUE) +
+  labs(title = "Model Accuracies and their comparison for binary classification model",
+       x = "Model", y = "Accuracy (%)") +
+  theme_minimal()
+#Ensemble models were compared using accuracy:
+#Boosting: 80.7%
+#Random Forest: 79.9%
+#Bagging: 79.1%
+#And from the variable plot, Friend Drinks Daily, Friend Offers Marijuana, and Grade Level are the most important predictors identified by the model
+
 # PART 2
 # MULTI-CLASS CLASSIFICATION: how often they used marijuana over the last year 
 
-# Converting MRJYDAYS to numeric and also performing some data cleaning by removing unnecessary data, like these: 991, 993, 994, 997, 998 
+# Converting MRJYDAYS to numeric and also performing some data cleaning by including data, like these: 991, 993, 994, 997, 998 
 drug_use$MRJYDAYS <- as.numeric(as.character(drug_use$MRJYDAYS))
-drug_use <- drug_use[!drug_use$MRJYDAYS %in% c(991, 993, 994, 997, 998), ]
 
-# Now, Binning the data into six categories:
-drug_use$marijuana_use_level <- cut(drug_use$MRJYDAYS, breaks = c(-1, 0, 5, 15, 30, 90, 365), labels = c("NEVER", "RARE", "OCCASIONAL", "REGULAR", "FREQUENT", "DAILY"), right = TRUE)
+# Imputation with mean for 900-level codes
+invalid_codes <- c(991, 993, 994, 997, 998)
+valid_mean <- mean(drug_use$MRJYDAYS[!drug_use$MRJYDAYS %in% invalid_codes], na.rm = TRUE)
+drug_use$MRJYDAYS[drug_use$MRJYDAYS %in% invalid_codes] <- valid_mean
+
+# Now, binning the data into 6 categories
+drug_use$marijuana_use_level <- cut(
+  drug_use$MRJYDAYS,
+  breaks = c(-1, 0, 5, 15, 30, 90, 365),
+  labels = c("NEVER", "RARE", "OCCASIONAL", "REGULAR", "FREQUENT", "DAILY"),
+  right = TRUE
+)
 
 # The dataframe 'df_multi' consists of the predictors and target variable for multi-classification
 df_multi <- drug_use[, c(demographic_cols, youth_experience_cols, "marijuana_use_level")]
 df_multi <- na.omit(df_multi)
+
+# Renaming variables for clarity
 colnames(df_multi)[colnames(df_multi) == "FRDMJMON"] <- "Friend_Uses_Marijuana_Monthly"
-colnames(df_multi)[colnames(df_multi) == "STNDSMJ"]     <- "Friend_Smokes_Marijuana"
+colnames(df_multi)[colnames(df_multi) == "STNDSMJ"]  <- "Friend_Smokes_Marijuana"
+colnames(df_multi)[colnames(df_multi) == "YFLMJMO"]    <- "Friend_Consumes_Marijuana_Monthly"
+colnames(df_multi)[colnames(df_multi) == "FRDMEVR2"]   <- "Friend_Ever_Tried_Marijuana"
+colnames(df_multi)[colnames(df_multi) == "YOSELL2"]    <- "Youth_Sold_Drugs"
+colnames(df_multi)[colnames(df_multi) == "EDUSCHGRD2"] <- "Grade_Level"
+colnames(df_multi)[colnames(df_multi) == "YFLTMRJ2"]   <- "Friend_Offered_Marijuana"
+colnames(df_multi)[colnames(df_multi) == "NEWRACE2"]   <- "Race"
+
+# For plot readability, recoding categorical variables.
+df_multi$Friend_Uses_Marijuana_Monthly <- factor(df_multi$Friend_Uses_Marijuana_Monthly, levels = c(1, 2), labels = c("Yes", "No"))
+
+df_multi$Friend_Smokes_Marijuana <- factor(df_multi$Friend_Smokes_Marijuana, levels = c(1, 2), labels = c("Yes", "No"))
+
+df_multi$Friend_Consumes_Marijuana_Monthly <- factor(df_multi$Friend_Consumes_Marijuana_Monthly, levels = c(1, 2), labels = c("Yes", "No"))
+
+df_multi$Friend_Ever_Tried_Marijuana <- factor(df_multi$Friend_Ever_Tried_Marijuana, levels = c(1, 2), labels = c("Yes", "No"))
+
+df_multi$Youth_Sold_Drugs <- factor(df_multi$Youth_Sold_Drugs, levels = c(1, 2), labels = c("Yes", "No"))
+
+df_multi$Grade_Level <- factor(df_multi$Grade_Level, levels = c(1:8, 9:11, 98, 99),
+                               labels = c(
+                                 rep("School", 8),  
+                                 rep("College", 3),        
+                                 "No Answer", "Skipped"
+                               )
+)
+
+df_multi$Friend_Offered_Marijuana <- factor(df_multi$Friend_Offered_Marijuana, levels = c(1, 2), labels = c("Yes", "No"))
+
 # Plotting the decision tree
 tree_two <- tree(marijuana_use_level ~ ., data = df_multi)
 tree_two
 summary(tree_two)
 plot(tree_two)
 text(tree_two, pretty = 0)
-title("Decision Tree for model two is Marijuana Used by Youth into 6 Levels")
+title("Decision Tree for model two is Marijuana Used by Youth into 6 Categories")
 
 # Pruning the above tree
-# Finding optimal size, using cross validation
+# Finding optimal tree size, we use cross validation
 set.seed(1)
 cv_two <- cv.tree(tree_two, FUN = prune.misclass)
 plot(cv_two$size, cv_two$dev, type = "b", main = "CV: Marijuana Use Tree", xlab = "Tree Size", ylab = "Misclassification Error")
@@ -145,23 +210,24 @@ train_set$marijuana_use_level <- droplevels(train_set$marijuana_use_level)
 test_set$marijuana_use_level <- droplevels(test_set$marijuana_use_level)
 
 set.seed(42)
-rf_two <- randomForest(marijuana_use_level ~ ., data = train_set, mtry = 5, importance = TRUE)
-# Computing the root mean square value
+# mtry is set to 5, as we took sqrt(p)
+rf_two <- randomForest(marijuana_use_level ~ ., data = train_set, mtry = 5, importance = TRUE, ntree = 500)
+
 prediction_two <- predict(rf_two, test_set, type = "class")
 prediction_two <- factor(prediction_two, levels = levels(test_set$marijuana_use_level))
-cat("The Random Forest Accuracy:", mean(prediction_two == test_set$marijuana_use_level), "\n")
+cat("Random Forest Accuracy:", mean(prediction_two == test_set$marijuana_use_level), "\n")
+confusionMatrix(prediction_two, test_set$marijuana_use_level)
 varImpPlot(rf_two, n.var = 5, main = "Top 5 Important Variables - Random Forest")
-
-
+#In the multi-class classification, the initial decision tree misclassified 12.5 percent of cases, and pruning increased accuracy to 86.6 percent  
+#Random Forest achieved 89.3 percent accuracy with a balanced accuracy of 66.3 percent  
+#Friends consuming marijuana emerged as the most powerful predictor of usage frequency.
 
 # PART3: REGRESSION: number of days per year a person has consumed alcohol 
-# Performing some data cleaning on IRALCFM, and ignoring 91,93 values
+# Performing some data cleaning on IRALCFM, and ignoring 91 values, which is "did not drink", so we set them to 0.
 drug_use$alcohol_days_past_month <- ifelse(
   drug_use$IRALCFM %in% 1:30,
   drug_use$IRALCFM,
-  ifelse(drug_use$IRALCFM %in% c(91, 93),
-         0,
-         NA)
+  ifelse(drug_use$IRALCFM %in% 91,0,NA)
 )
 
 # The dataframe 'df_reg' consists of the predictors and outcome variables for the regression model and then remove the null values
@@ -170,8 +236,19 @@ df_reg <- na.omit(df_reg)
 print(table(df_reg$alcohol_days_past_month))
 
 # For readability and clarity of predictor variable names
-colnames(df_reg)[colnames(df_reg) == "YFLMJMO"]    <- "Friend_Marijuana_Monthly"
+colnames(df_reg)[colnames(df_reg) == "YFLMJMO"]    <- "Friend_Takes_Marijuana_Monthly"
 colnames(df_reg)[colnames(df_reg) == "YOSTOLE2"]   <- "Youth_Stole_Something"
+colnames(df_reg)[colnames(df_reg) == "STNDALC"]  <- "Friend_Drinks_Daily"
+colnames(df_reg)[colnames(df_reg) == "YOSELL2"]  <- "Youth_Sold_Drugs"
+colnames(df_reg)[colnames(df_reg) == "ARGUPAR"]  <- "Argued_With_Parents"
+
+# For plot readability, recoding categorical variables.
+df_reg$Friend_Drinks_Daily <- factor(df_reg$Friend_Drinks_Daily, levels = c(1, 2), labels = c("Yes", "No"))
+
+df_reg$Youth_Sold_Drugs <- factor(df_reg$Youth_Sold_Drugs, levels = c(1, 2), labels = c("Yes", "No"))
+
+df_reg$Argued_With_Parents <- factor(df_reg$Argued_With_Parents, levels = c(1, 2), labels = c("Yes", "No"))
+
 
 # Splitting the data into train and test data, 70% train data and 30% test data
 set.seed(42)
@@ -179,7 +256,7 @@ train_index <- sample(1:nrow(df_reg), 0.7 * nrow(df_reg))
 train_set <- na.omit(df_reg[train_index, ])
 test_set  <- na.omit(df_reg[-train_index, ])
 
-# DECISON TREE
+# DECISION TREE
 tree_three <- tree(alcohol_days_past_month ~ ., data = train_set)
 tree_three
 summary(tree_three)
@@ -197,19 +274,27 @@ plot(cv_three$size, cv_three$dev, type = "b", xlab = "Tree Size", ylab = "Devian
 
 opt_size <- cv_three$size[which.min(cv_three$dev)]
 cat("Optimal Tree Size:", opt_size, "\n")
-# but we take 3 from the graph
-prune_three <- prune.tree(tree_three, best = 3)
+# so we take 4 from the graph
+prune_three <- prune.tree(tree_three, best = 4)
+summary(prune_three)
 plot(prune_three)
 text(prune_three, pretty = 0)
 title("Pruned Regression Tree")
 
 prediction_three <- predict(prune_three, test_set)
 mean((prediction_three - test_set$alcohol_days_past_month)^2)
+mse <- mean((prediction_three - test_set$alcohol_days_past_month)^2)
+rss <- sum((prediction_three - test_set$alcohol_days_past_month)^2)
+tss <- sum((test_set$alcohol_days_past_month - mean(test_set$alcohol_days_past_month))^2)
+r_squared <- 1 - rss/tss
+
+cat("MSE is:", mse, "\n")
+cat("R squared is:", r_squared, "\n")
 # Note: The outcome is in days
 
 # BAGGING
 # Using all predictors for bagging 
-bag_three <- randomForest(alcohol_days_past_month ~ ., data = train_set, mtry = 4, importance = TRUE)
-prediction_four <- predict(bag_three, test_set)
-mean((prediction_four - test_set$alcohol_days_past_month)^2)
+bag_three <- randomForest(alcohol_days_past_month ~ ., data = train_set, mtry = ncol(train_set) - 1, importance = TRUE, ntree = 500)
+prediction_bg <- predict(bag_three, test_set, type = "class")
+mean((prediction_bg - test_set$alcohol_days_past_month)^2)
 varImpPlot(bag_three, n.var = 5, sort = TRUE, main = "Top 5 Important Variables (Regression)")
