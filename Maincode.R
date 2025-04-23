@@ -1,3 +1,4 @@
+
 #Imported all the necessary libraries
 library(tidyverse)
 library(ISLR2)
@@ -5,6 +6,7 @@ library(tree)
 library(randomForest)
 library(gbm)
 library(caret)
+library(ggplot2)
 
 # I've set the working directory and loaded 'youth_data.Rdata' into data
 setwd("C:/Users/alekh/Downloads/")
@@ -58,8 +60,8 @@ cv_one <- cv.tree(tree_one, FUN = prune.misclass)
 plot(cv_one$size, cv_one$dev, type = "b", main = "Cross-Validation", xlab = "Tree Size", ylab = "Misclassification Error")
 opt_size <- cv_one$size[which.min(cv_one$dev)]
 opt_size
-# We got best size as 4
-# But, 3 is the best optimal size from the graph
+# We got best size as 3
+# Here, 3 is the best optimal size from the graph
 # So, we use 3 as the opt_size
 prune_one <- prune.misclass(tree_one, best = 3)
 plot(prune_one)
@@ -100,7 +102,6 @@ confusionMatrix(prediction_rf, test_set$alcohol_use)
 cat("Random Forest Accuracy:", mean(prediction_rf == test_set$alcohol_use), "\n")
 varImpPlot(rf_one, n.var = 5, sort = TRUE, main = "Top 5 Important Variables")
 
-
 # plotting the three models accuracy results
 models <- c("Boosting", "Random Forest", "Bagging")
 accuracies <- c(80.7, 79.9, 79.1)/100
@@ -110,11 +111,6 @@ ggplot(df_accuracies, aes(x = models, y = accuracies, fill = models)) +
   labs(title = "Model Accuracies and their comparison for binary classification model",
        x = "Model", y = "Accuracy (%)") +
   theme_minimal()
-#Ensemble models were compared using accuracy:
-#Boosting: 80.7%
-#Random Forest: 79.9%
-#Bagging: 79.1%
-#And from the variable plot, Friend Drinks Daily, Friend Offers Marijuana, and Grade Level are the most important predictors identified by the model
 
 # PART 2
 # MULTI-CLASS CLASSIFICATION: how often they used marijuana over the last year 
@@ -199,8 +195,6 @@ set.seed(123)
 train_data <- createDataPartition(df_multi$marijuana_use_level, p = 0.8, list = FALSE)
 train_set <- df_multi[train_data, ]
 test_set  <- df_multi[-train_data, ]
-
-# Plotting the tree
 tree_two <- predict(prune_two, test_set, type = "class")
 mean(tree_two == test_set$marijuana_use_level)
 
@@ -218,9 +212,8 @@ prediction_two <- factor(prediction_two, levels = levels(test_set$marijuana_use_
 cat("Random Forest Accuracy:", mean(prediction_two == test_set$marijuana_use_level), "\n")
 confusionMatrix(prediction_two, test_set$marijuana_use_level)
 varImpPlot(rf_two, n.var = 5, main = "Top 5 Important Variables - Random Forest")
-#In the multi-class classification, the initial decision tree misclassified 12.5 percent of cases, and pruning increased accuracy to 86.6 percent  
-#Random Forest achieved 89.3 percent accuracy with a balanced accuracy of 66.3 percent  
-#Friends consuming marijuana emerged as the most powerful predictor of usage frequency.
+
+
 
 # PART3: REGRESSION: number of days per year a person has consumed alcohol 
 # Performing some data cleaning on IRALCFM, and ignoring 91 values, which is "did not drink", so we set them to 0.
@@ -236,10 +229,16 @@ df_reg <- na.omit(df_reg)
 print(table(df_reg$alcohol_days_past_month))
 
 # For readability and clarity of predictor variable names
-colnames(df_reg)[colnames(df_reg) == "YFLMJMO"]    <- "Friend_Takes_Marijuana_Monthly"
-colnames(df_reg)[colnames(df_reg) == "YOSTOLE2"]   <- "Youth_Stole_Something"
-colnames(df_reg)[colnames(df_reg) == "STNDALC"]  <- "Friend_Drinks_Daily"
+colnames(df_reg)[colnames(df_reg) == "FRDMJMON"] <- "Friend_Uses_Marijuana_Monthly"
+colnames(df_reg)[colnames(df_reg) == "STNDSMJ"]  <- "Friend_Smokes_Marijuana"
+colnames(df_reg)[colnames(df_reg) == "RLGFRND"]  <- "Religious_Friend"
+colnames(df_reg)[colnames(df_reg) == "YFLTMRJ2"] <- "Friend_Influence_Marijuana"
+colnames(df_reg)[colnames(df_reg) == "FRDMEVR2"] <- "Friend_Ever_Used_Marijuana"
+colnames(df_reg)[colnames(df_reg) == "HEALTH2"]  <- "Self_Reported_Health"
 colnames(df_reg)[colnames(df_reg) == "YOSELL2"]  <- "Youth_Sold_Drugs"
+colnames(df_reg)[colnames(df_reg) == "STNDALC"]  <- "Friend_Drinks_Daily"
+colnames(df_reg)[colnames(df_reg) == "EDUSCHGRD2"] <- "Grade_Level"
+colnames(df_reg)[colnames(df_reg) == "NEWRACE2"] <- "Race_Category"
 colnames(df_reg)[colnames(df_reg) == "ARGUPAR"]  <- "Argued_With_Parents"
 
 # For plot readability, recoding categorical variables.
@@ -256,7 +255,7 @@ train_index <- sample(1:nrow(df_reg), 0.7 * nrow(df_reg))
 train_set <- na.omit(df_reg[train_index, ])
 test_set  <- na.omit(df_reg[-train_index, ])
 
-# DECISION TREE
+# DECISON TREE
 tree_three <- tree(alcohol_days_past_month ~ ., data = train_set)
 tree_three
 summary(tree_three)
@@ -295,6 +294,9 @@ cat("R squared is:", r_squared, "\n")
 # BAGGING
 # Using all predictors for bagging 
 bag_three <- randomForest(alcohol_days_past_month ~ ., data = train_set, mtry = ncol(train_set) - 1, importance = TRUE, ntree = 500)
-prediction_bg <- predict(bag_three, test_set, type = "class")
+prediction_bg <- predict(bag_three, test_set)
 mean((prediction_bg - test_set$alcohol_days_past_month)^2)
+
 varImpPlot(bag_three, n.var = 5, sort = TRUE, main = "Top 5 Important Variables (Regression)")
+
+
